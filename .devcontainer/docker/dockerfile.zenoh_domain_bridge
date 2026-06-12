@@ -1,0 +1,92 @@
+FROM ubuntu:24.04
+
+# Use bash as shell.
+ENV SHELL=/bin/bash
+SHELL ["/bin/bash", "-c"]
+
+#########################################################################################################
+# Update and install required apt.                                                                      #
+#########################################################################################################
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    # Configure apt to use IPv4 because otherwise apt operations are slow as fuck!?
+    echo 'Acquire::ForceIPv4 "true";' >"/etc/apt/apt.conf.d/99-force-ipv4" && \
+    apt update && apt upgrade -y && apt install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        cmake \
+        curl \
+        dotnet-sdk-8.0 \
+        gdb \
+        git-lfs \
+        nano \
+        python3-dev \
+        python3-pip \
+        sudo && \
+    apt -y autoremove && apt clean && rm -rf "/var/lib/apt/lists/"*
+
+#########################################################################################################
+# Create a non-root user.                                                                               #
+#########################################################################################################
+ARG USERNAME=developer
+ENV USERNAME=${USERNAME}
+ARG USER_UID=1000
+ARG USER_GID=${USER_UID}
+ENV HOME=/home/${USERNAME}
+
+RUN if [ ! $(getent group "${USER_GID}") ]; then \
+        groupadd --gid "${USER_GID}" "${USERNAME}" &>"/dev/null"; \
+    else \
+        CONFLICTING_GROUPNAME=`getent group "${USER_GID}" | cut -d: -f1` && \
+        groupmod -o --gid "${USER_GID}" -n "${USERNAME}" "${CONFLICTING_GROUPNAME}"; \
+    fi && \
+    \
+    if [ ! $(getent passwd "${USER_UID}") ]; then \
+        useradd --no-log-init --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" &>"/dev/null"; \
+    else \
+        CONFLICTING_USERNAME=`getent passwd "${USER_UID}" | cut -d: -f1` && \
+        usermod -l "${USERNAME}" -u "${USER_UID}" -m -d "/home/${USERNAME}" "${CONFLICTING_USERNAME}" &>"/dev/null" && \
+        mkdir -p "/home/${USERNAME}" && \
+        # Wipe files that may create issues for users with large UID numbers.
+        rm -f "/var/log/lastlog /var/log/faillog"; \
+    fi && \
+    \
+    chown "${USERNAME}":"${USERNAME}" "/home/${USERNAME}" && \
+    echo "${USERNAME}" ALL=\(root\) NOPASSWD:ALL >"/etc/sudoers.d/${USERNAME}" && \
+    chmod 0440 "/etc/sudoers.d/${USERNAME}" && \
+    usermod -aG video,plugdev,sudo "${USERNAME}"
+
+# Activate the previously created user.
+USER ${USERNAME}
+
+#########################################################################################################
+# Install Zenoh.                                                                                        #
+#########################################################################################################
+# Install Rust.
+ENV PATH="/home/$USERNAME/.cargo/bin:${PATH}"
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable && rustup update
+
+WORKDIR ${HOME}/dependencies
+
+RUN git clone -b "1.9.0" --depth 1 "https://github.com/eclipse-zenoh/zenoh-c.git" && \
+    cd "zenoh-c" && \
+    cmake -B "build" \
+        -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build "build" -j$(nproc) && \
+    sudo cmake --install "build" && sudo ldconfig
+
+RUN git clone -b "1.9.0" --depth 1 "https://github.com/eclipse-zenoh/zenoh-cpp.git" && \
+    cd "zenoh-cpp" && \
+    cmake -B "build" \
+        -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build "build" -j$(nproc) && \
+    sudo cmake --install "build" && sudo ldconfig
+
+RUN pip install --break-system-packages \
+        eclipse-zenoh
+
+RUN sudo rm -rf "${HOME}/dependencies"
+
+WORKDIR /workspace
+
+ENV ZENOH_ROUTER_CONFIG_URI=/workspace/config/zenoh_router.yaml
+ENV ZENOH_SESSION_CONFIG_URI=/workspace/config/zenoh_session.yaml

@@ -1,0 +1,69 @@
+{
+    "name": "SFG Zenoh Domain Bridge",
+    "dockerComposeFile": "${localWorkspaceFolder}/.devcontainer/compose/compose.zenoh_domain_bridge.yaml",
+    "service": "sfg_zenoh_domain_bridge",
+    "overrideCommand": true,
+    "workspaceFolder": "/workspace",
+    "customizations": {
+        "vscode": {
+            "settings": {
+                // General settings.
+                "editor.formatOnSave": true,
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "terminal.integrated.profiles.linux": {
+                    "bash": {
+                        "path": "/bin/bash",
+                        "args": [
+                            "--login"
+                        ]
+                    }
+                },
+                "workbench.view.showQuietly": {
+                    "workbench.panel.output": true
+                },
+                "docker.languageserver.formatter.ignoreMultilineInstructions": true,
+                "docker.lsp.experimental.vulnerabilityScanning": false,
+                "docker.extension.dockerEngineAvailabilityPrompt": false,
+                // Python settings.
+                "python.languageServer": "Pylance",
+                "debugpy.debugJustMyCode": false,
+                "[python]": {
+                    "editor.defaultFormatter": "charliermarsh.ruff",
+                    "editor.codeActionsOnSave": {
+                        "source.organizeImports": "explicit"
+                    }
+                },
+                "mypy-type-checker.args": [
+                    "--config-file=${containerWorkspaceFolder}/.vscode/mypy.ini"
+                ],
+                // C++ settings.
+                "C_Cpp.clang_format_style": "file:${containerWorkspaceFolder}/.vscode/clang_format.yaml",
+                "[cpp]": {
+                    "editor.defaultFormatter": "ms-vscode.cpptools"
+                },
+                "[cmake]": {
+                    "editor.defaultFormatter": "josetr.cmake-language-support-vscode"
+                },
+                "cmake.languageSupport.dotnetPath": "/usr/bin/dotnet",
+                "cmake.configureOnOpen": false
+            },
+            "extensions": [
+                // General extensions.
+                "eamodio.gitlens",
+                "GitHub.copilot",
+                "ms-azuretools.vscode-docker",
+                "redhat.vscode-yaml",
+                // Python extensions.
+                "charliermarsh.ruff",
+                "ms-python.mypy-type-checker",
+                "ms-python.python",
+                "njpwerner.autodocstring",
+                // C++ extensions.
+                "cschlosser.doxdocgen",
+                "jeff-hykin.better-cpp-syntax",
+                "josetr.cmake-language-support-vscode",
+                "ms-vscode.cpptools-extension-pack"
+            ]
+        }
+    }
+}

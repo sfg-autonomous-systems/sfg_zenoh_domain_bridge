@@ -1,0 +1,12 @@
+services:
+  sfg_zenoh_domain_bridge:
+    build:
+      context: ../..
+      dockerfile: .devcontainer/docker/dockerfile.zenoh_domain_bridge
+    volumes:
+      - type: bind
+        source: ../..
+        target: /workspace
+    network_mode: host
+    privileged: true
+    ipc: host

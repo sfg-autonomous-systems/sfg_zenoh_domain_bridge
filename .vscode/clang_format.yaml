@@ -1,0 +1,11 @@
+Language: Cpp
+BasedOnStyle: Microsoft
+IndentWidth: 4
+AccessModifierOffset: -4
+ColumnLimit: 0
+NamespaceIndentation: All
+BreakBeforeBraces: Allman
+AllowShortFunctionsOnASingleLine: false
+FixNamespaceComments: false
+IndentCaseLabels: true
+SortIncludes: CaseInsensitive
