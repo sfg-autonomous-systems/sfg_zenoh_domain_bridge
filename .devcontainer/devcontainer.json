@@ -9,6 +9,10 @@
             "settings": {
                 // General settings.
                 "editor.formatOnSave": true,
+                "files.exclude": {
+                    "**/__pycache__": true,
+                    "**/.mypy_cache": true
+                },
                 "terminal.integrated.defaultProfile.linux": "bash",
                 "terminal.integrated.profiles.linux": {
                     "bash": {

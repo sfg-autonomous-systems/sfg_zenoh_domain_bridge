@@ -6,28 +6,43 @@ from pathlib import Path
 
 import zenoh
 
-from zenoh_domain_bridge.liveliness.liveliness_bridger import LivelinessBridger
+from .bridge_config import BridgeConfig
+from .zenoh_data_bridge import ZenohDataBridge
+from .zenoh_liveliness_bridge import ZenohLivelinessBridge
 
 logger = logging.getLogger(__name__)
-local_domain_id = int(os.getenv("ROS_DOMAIN_ID", "0"))
-global_domain_id = 0
 
 
 def main() -> None:
-    config_filepath = os.getenv("ZENOH_SESSION_CONFIG_URI")
-    config = (
-        zenoh.Config.from_file(config_filepath)
-        if config_filepath is not None and Path(config_filepath).exists()
+    session_config_filepath = os.getenv("ZENOH_SESSION_CONFIG_URI")
+    session_config = (
+        zenoh.Config.from_file(session_config_filepath)
+        if session_config_filepath is not None
+        and Path(session_config_filepath).exists()
         else zenoh.Config()
     )
-    logger.info(f"Using Zenoh session configuration '{config_filepath}'.")
-    logger.info(
-        f"Bridging data from local domain ID {local_domain_id} to global domain {global_domain_id}..."
+    logger.info(f"Using Zenoh session configuration '{session_config_filepath}'.")
+
+    local_domain_id = int(os.getenv("ROS_DOMAIN_ID", "0"))
+    bridge_config = BridgeConfig(
+        local_domain_id=local_domain_id,
+        global_domain_id=0,
+        bridge_name=f"__zenoh_domain_{local_domain_id}_bridge",
     )
 
-    with zenoh.open(config) as session:
-        _ = LivelinessBridger(
-            session, node_name=f"zenoh_domain_{local_domain_id}_bridge"
+    if bridge_config.local_domain_id == bridge_config.global_domain_id:
+        logger.critical("ROS_DOMAIN_ID must be different from the global domain ID 0.")
+        exit(1)
+
+    logger.info(f"Using bridge configuration: {bridge_config}")
+
+    with zenoh.open(session_config) as session:
+        zenoh_data_bridge = ZenohDataBridge(session, bridge_config)
+        _ = ZenohLivelinessBridge(
+            session,
+            bridge_config,
+            on_token_bridged=zenoh_data_bridge.bridge_data,
+            on_token_unbridged=zenoh_data_bridge.unbridge_data,
         )
         try:
             while True:
