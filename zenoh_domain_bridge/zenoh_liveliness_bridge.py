@@ -8,7 +8,7 @@ import zenoh
 from .bridge_config import BridgeConfig
 from .liveliness_token import LivelinessToken
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__.split(".")[-1])
 
 
 class ZenohLivelinessBridge:
@@ -38,12 +38,12 @@ class ZenohLivelinessBridge:
             mangled_namespace="%",
             node_name=self._config.bridge_name,
         )
-        logger.debug(f"Announcing domain bridge via node token '{token.key_expr}'...")
+        logger.debug(f"Created node token: {token}")
         return self._session.liveliness().declare_token(token.key_expr)
 
     def _initialize_liveliness(self) -> None:
-        local_key_expr = f"@ros2_lv/{self._config.local_domain_id}/**"
-        global_key_expr = f"@ros2_lv/{self._config.global_domain_id}/**"
+        local_key_expr = f"{LivelinessToken.prefix}/{self._config.local_domain_id}/**"
+        global_key_expr = f"{LivelinessToken.prefix}/{self._config.global_domain_id}/**"
         logger.info(
             f"Listening to tokens on '{local_key_expr}' and '{global_key_expr}'..."
         )
@@ -123,9 +123,7 @@ class ZenohLivelinessBridge:
         self._bridged_tokens[token] = self._session.liveliness().declare_token(
             bridged_token.key_expr
         )
-        logger.debug(
-            f"Created bridged token '{bridged_token.key_expr}' because token '{token.key_expr}' was created."
-        )
+        logger.debug(f"Bridged token: {token} -> {bridged_token}")
 
         if self._on_token_bridged:
             self._on_token_bridged(token)
@@ -151,9 +149,7 @@ class ZenohLivelinessBridge:
 
         self._bridged_tokens[token].undeclare()
         del self._bridged_tokens[token]
-        logger.debug(
-            f"Deleted bridged token '{bridged_token.key_expr}' because token '{token.key_expr}' was deleted."
-        )
+        logger.debug(f"Unbridged token: {token} -> {bridged_token}")
 
         if self._on_token_unbridged:
             self._on_token_unbridged(token)

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
+from typing import ClassVar
 
 
 # For details on key expressions for ROS 2 liveliness tokens, see https://github.com/ros2/rmw_zenoh/blob/rolling/docs/design.md.
@@ -13,6 +14,7 @@ class LivelinessToken:
         SERVICE_SERVER = "SS"
         SERVICE_CLIENT = "SC"
 
+    prefix: ClassVar[str] = "@ros2_lv"
     domain_id: int
     session_id: str
     node_id: str
@@ -26,6 +28,42 @@ class LivelinessToken:
     type_hash: str | None = None
     qos: str | None = None
     backends: str | None = None
+
+    def __repr__(self) -> str:
+        parts = [
+            LivelinessToken.prefix,
+            str(self.domain_id),
+            f"..{self.session_id[-6:]}"
+            if len(self.session_id) > 8
+            else self.session_id,
+            self.node_id,
+            self.entity_id,
+            self.entity_kind,
+            self.mangled_enclave,
+            self.mangled_namespace,
+            self.node_name,
+        ]
+
+        if self.kind != LivelinessToken.EntityKind.NODE:
+            type_hash = (
+                f"..{self.type_hash[-6:]}"
+                if self.type_hash and len(self.type_hash) > 8
+                else self.type_hash
+            )
+
+            parts.extend(
+                [
+                    str(self.mangled_fqn),
+                    str(self.type_name),
+                    str(type_hash),
+                    str(self.qos),
+                ]
+            )
+
+        if self.backends is not None:
+            parts.append(self.backends)
+
+        return "/".join(parts)
 
     @classmethod
     def from_key_expr(cls, key_expr: str) -> "LivelinessToken":
@@ -91,7 +129,7 @@ class LivelinessToken:
 
     @cached_property
     def key_expr(self) -> str:
-        key_expr = f"@ros2_lv/{self.domain_id}/{self.session_id}/{self.node_id}/{self.entity_id}/{self.entity_kind}/{self.mangled_enclave}/{self.mangled_namespace}/{self.node_name}"
+        key_expr = f"{LivelinessToken.prefix}/{self.domain_id}/{self.session_id}/{self.node_id}/{self.entity_id}/{self.entity_kind}/{self.mangled_enclave}/{self.mangled_namespace}/{self.node_name}"
 
         if self.kind != LivelinessToken.EntityKind.NODE:
             key_expr += (

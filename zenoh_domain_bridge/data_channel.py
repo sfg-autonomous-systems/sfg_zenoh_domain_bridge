@@ -15,6 +15,13 @@ class DataChannel:
     def __post_init__(self) -> None:
         object.__setattr__(self, "fqn", f"/{self.fqn.strip('/')}")
 
+    def __repr__(self) -> str:
+        type_hash = (
+            f"..{self.type_hash[-6:]}" if len(self.type_hash) > 8 else self.type_hash
+        )
+
+        return f"{self.domain_id}/{self.fqn[1:]}/{self.type_name}/{type_hash}"
+
     @classmethod
     def from_key_expr(cls, key_expr: str) -> "DataChannel":
         parts = key_expr.split("/")

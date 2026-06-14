@@ -7,7 +7,7 @@ from .bridge_config import BridgeConfig
 from .data_channel import DataChannel
 from .liveliness_token import LivelinessToken
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__.split(".")[-1])
 
 
 class ZenohDataBridge:
@@ -19,151 +19,115 @@ class ZenohDataBridge:
         self._session = session
         self._config = config
 
-        # We keep a reference count of the demanded and supplied data channels.
-        self._demanded_data_channels: dict[DataChannel, int] = {}
-        self._supplied_data_channels: dict[DataChannel, int] = {}
-
         # We keep track of the currently bridged data channels to avoid bridging the same channel multiple times.
-        self._bridged_data_channels: dict[
+        self._bridged_channels: dict[
             DataChannel, tuple[zenoh.Publisher, zenoh.Subscriber]
         ] = {}
 
+        # We keep a reference count of the demanded and supplied data channels.
+        self._demanded_channels_ref_count: dict[DataChannel, int] = {}
+        self._supplied_channels_ref_count: dict[DataChannel, int] = {}
+
     def bridge_data(self, token: LivelinessToken) -> None:
+        channel = DataChannel.from_liveliness_token(token)
+
         match token.kind:
-            # A supplier came online. If there is a matching demand, we need to bridge the data channel.
             case LivelinessToken.EntityKind.MESSAGE_PUBLISHER:
-                supplied_data_channel = DataChannel.from_liveliness_token(token)
-                self._track_demand_and_supply(
-                    self._supplied_data_channels,
-                    supplied_data_channel,
-                    delta=1,
+                supplied = channel
+                demanded = self._get_counterpart_channel(channel)
+                self._update_ref_count(
+                    self._supplied_channels_ref_count, supplied, delta=1
                 )
-                demanded_data_channel = replace(
-                    supplied_data_channel,
-                    domain_id=self._config.local_domain_id
-                    if supplied_data_channel.domain_id == self._config.global_domain_id
-                    else self._config.global_domain_id,
-                )
-
-                # No demand for this data channel, we don't need to bridge it.
-                if demanded_data_channel not in self._demanded_data_channels:
-                    return
-
-                # There is demand, but it is already bridged.
-                if supplied_data_channel in self._bridged_data_channels:
-                    return
-
-                self._bridged_data_channels[supplied_data_channel] = (
-                    self._create_bridge(
-                        demanded_data_channel,
-                        supplied_data_channel,
-                    )
-                )
-
-            # A demand came online. If there is a matching supply, we need to bridge the data channel.
             case LivelinessToken.EntityKind.MESSAGE_SUBSCRIBER:
-                demanded_data_channel = DataChannel.from_liveliness_token(token)
-                self._track_demand_and_supply(
-                    self._demanded_data_channels,
-                    demanded_data_channel,
-                    delta=1,
+                demanded = channel
+                supplied = self._get_counterpart_channel(channel)
+                self._update_ref_count(
+                    self._demanded_channels_ref_count, demanded, delta=1
                 )
-                supplied_data_channel = replace(
-                    demanded_data_channel,
-                    domain_id=self._config.local_domain_id
-                    if demanded_data_channel.domain_id == self._config.global_domain_id
-                    else self._config.global_domain_id,
-                )
+            case _:
+                return
 
-                # No supply for this data channel, we can't bridge it.
-                if supplied_data_channel not in self._supplied_data_channels:
-                    return
-
-                # There is supply, but it is already bridged.
-                if supplied_data_channel in self._bridged_data_channels:
-                    return
-
-                self._bridged_data_channels[supplied_data_channel] = (
-                    self._create_bridge(
-                        demanded_data_channel,
-                        supplied_data_channel,
-                    )
-                )
+        self._try_bridge(demanded, supplied)
 
     def unbridge_data(self, token: LivelinessToken) -> None:
+        channel = DataChannel.from_liveliness_token(token)
+
         match token.kind:
-            # A supplier went offline. If it was the only supplier for the data channel, we need to unbridge it.
             case LivelinessToken.EntityKind.MESSAGE_PUBLISHER:
-                supplied_data_channel = DataChannel.from_liveliness_token(token)
-                self._track_demand_and_supply(
-                    self._supplied_data_channels,
-                    supplied_data_channel,
-                    delta=-1,
+                supplied = channel
+                self._update_ref_count(
+                    self._supplied_channels_ref_count, supplied, delta=-1
                 )
-
-                # There is still supply. We don't need to unbridge it.
-                if supplied_data_channel in self._supplied_data_channels:
-                    return
-
-                if supplied_data_channel not in self._bridged_data_channels:
-                    return
-
-                publisher, subscriber = self._bridged_data_channels.pop(
-                    supplied_data_channel
-                )
-                subscriber.undeclare()
-                publisher.undeclare()
-
-            # A demand went offline. If it was the only demand for the data channel, we need to unbridge it.
             case LivelinessToken.EntityKind.MESSAGE_SUBSCRIBER:
-                demanded_data_channel = DataChannel.from_liveliness_token(token)
-                self._track_demand_and_supply(
-                    self._demanded_data_channels,
-                    demanded_data_channel,
-                    delta=-1,
+                demanded = channel
+                supplied = self._get_counterpart_channel(channel)
+                self._update_ref_count(
+                    self._demanded_channels_ref_count, demanded, delta=-1
                 )
+            case _:
+                return
 
-                supplied_data_channel = replace(
-                    demanded_data_channel,
-                    domain_id=self._config.local_domain_id
-                    if demanded_data_channel.domain_id == self._config.global_domain_id
-                    else self._config.global_domain_id,
-                )
+        self._try_unbridge(supplied)
 
-                # There is still demand. We don't need to unbridge it.
-                if demanded_data_channel in self._demanded_data_channels:
-                    return
+    def _get_counterpart_channel(self, channel: DataChannel) -> DataChannel:
+        return replace(
+            channel,
+            domain_id=self._config.local_domain_id
+            if channel.domain_id == self._config.global_domain_id
+            else self._config.global_domain_id,
+        )
 
-                if supplied_data_channel not in self._bridged_data_channels:
-                    return
-
-                publisher, subscriber = self._bridged_data_channels.pop(
-                    supplied_data_channel
-                )
-                subscriber.undeclare()
-                publisher.undeclare()
-
-    def _track_demand_and_supply(
+    def _update_ref_count(
         self,
-        data_channels: dict[DataChannel, int],
-        data_channel: DataChannel,
+        channels: dict[DataChannel, int],
+        channel: DataChannel,
         delta: int,
     ) -> None:
-        if data_channel not in data_channels:
-            data_channels[data_channel] = 0
+        new_count = channels.get(channel, 0) + delta
 
-        data_channels[data_channel] += delta
+        if new_count <= 0:
+            channels.pop(channel, None)
+        else:
+            channels[channel] = new_count
 
-        if data_channels[data_channel] <= 0:
-            del data_channels[data_channel]
+    def _try_bridge(self, demanded: DataChannel, supplied: DataChannel) -> None:
+        if demanded not in self._demanded_channels_ref_count:
+            return
+
+        if supplied not in self._supplied_channels_ref_count:
+            return
+
+        if supplied in self._bridged_channels:
+            return
+
+        logger.debug(f"Bridging data channel: {supplied} -> {demanded}")
+        self._bridged_channels[supplied] = self._create_bridge(demanded, supplied)
+
+    def _try_unbridge(self, supplied: DataChannel) -> None:
+        demanded = self._get_counterpart_channel(supplied)
+
+        # A bridge requires BOTH supply and demand.
+        has_supply = supplied in self._supplied_channels_ref_count
+        has_demand = demanded in self._demanded_channels_ref_count
+
+        if has_supply and has_demand:
+            return  # The bridge is still actively required
+
+        if supplied not in self._bridged_channels:
+            return  # Already unbridged or never existed in the first place
+
+        logger.debug(f"Unbridging data channel: {supplied} -> {demanded}")
+        publisher, subscriber = self._bridged_channels.pop(supplied)
+        subscriber.undeclare()
+        publisher.undeclare()
 
     def _create_bridge(
         self,
-        demanded_data_channel: DataChannel,
-        supplied_data_channel: DataChannel,
+        demanded_channel: DataChannel,
+        supplied_channel: DataChannel,
     ) -> tuple[zenoh.Publisher, zenoh.Subscriber]:
         # ToDo: Determine if we need to specify the reliability for the publisher.
-        publisher = self._session.declare_publisher(demanded_data_channel.key_expr)
+        publisher = self._session.declare_publisher(demanded_channel.key_expr)
 
         def bridge(sample: zenoh.Sample):
             # Prevent loops.
@@ -180,7 +144,7 @@ class ZenohDataBridge:
             )
 
         subscriber = self._session.declare_subscriber(
-            supplied_data_channel.key_expr,
+            supplied_channel.key_expr,
             bridge,
         )
 

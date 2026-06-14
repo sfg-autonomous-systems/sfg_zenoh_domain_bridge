@@ -4,8 +4,8 @@ from functools import cached_property
 
 @dataclass(frozen=True)
 class BridgeConfig:
-    local_domain_id: int
     global_domain_id: int
+    local_domain_id: int
     bridge_name: str
     bridged_fqn_prefix: str = "/global/"
 

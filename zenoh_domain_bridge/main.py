@@ -7,10 +7,11 @@ from pathlib import Path
 import zenoh
 
 from .bridge_config import BridgeConfig
+from .indented_wrapping_formatter import IndentWrappingFormatter
 from .zenoh_data_bridge import ZenohDataBridge
 from .zenoh_liveliness_bridge import ZenohLivelinessBridge
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__.split(".")[-1])
 
 
 def main() -> None:
@@ -21,7 +22,7 @@ def main() -> None:
         and Path(session_config_filepath).exists()
         else zenoh.Config()
     )
-    logger.info(f"Using Zenoh session configuration '{session_config_filepath}'.")
+    logger.info(f"Using session configuration: {session_config_filepath}")
 
     local_domain_id = int(os.getenv("ROS_DOMAIN_ID", "0"))
     bridge_config = BridgeConfig(
@@ -63,9 +64,15 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(
+        IndentWrappingFormatter(
+            fmt="%(asctime)s | %(name)-23s | %(levelname)-8s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
     logging.basicConfig(
         level=getattr(logging, args.log_level),
-        format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[console_handler],
     )
     main()
