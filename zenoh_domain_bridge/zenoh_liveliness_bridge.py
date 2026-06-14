@@ -42,8 +42,12 @@ class ZenohLivelinessBridge:
         return self._session.liveliness().declare_token(token.key_expr)
 
     def _initialize_liveliness(self) -> None:
-        local_key_expr = f"{LivelinessToken.prefix}/{self._config.local_domain_id}/**"
-        global_key_expr = f"{LivelinessToken.prefix}/{self._config.global_domain_id}/**"
+        local_key_expr = (
+            f"{LivelinessToken.key_expr_prefix}/{self._config.local_domain_id}/**"
+        )
+        global_key_expr = (
+            f"{LivelinessToken.key_expr_prefix}/{self._config.global_domain_id}/**"
+        )
         logger.info(
             f"Listening to tokens on '{local_key_expr}' and '{global_key_expr}'..."
         )
@@ -72,7 +76,11 @@ class ZenohLivelinessBridge:
         self,
         sample: zenoh.Sample,
     ) -> None:
-        token = LivelinessToken.from_key_expr(str(sample.key_expr))
+        try:
+            token = LivelinessToken.from_key_expr(str(sample.key_expr))
+        except ValueError as error:
+            logger.error(error)
+            return
 
         # We do not bridge node tokens.
         if token.kind == LivelinessToken.EntityKind.NODE:
@@ -80,8 +88,8 @@ class ZenohLivelinessBridge:
 
         assert token.mangled_fqn is not None
 
-        # We only bridge communication tokens that start with correct prefix.
-        if not token.mangled_fqn.startswith(self._config.mangled_bridged_fqn_prefix):
+        # We only bridge communication tokens that start with the correct prefix.
+        if not token.mangled_fqn.startswith(LivelinessToken.mangled_fqn_prefix):
             return
 
         # We do not bridge tokens that were created by this bridge.

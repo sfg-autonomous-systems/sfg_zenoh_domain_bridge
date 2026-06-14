@@ -23,27 +23,9 @@ class DataChannel:
         return f"{self.domain_id}/{self.fqn[1:]}/{self.type_name}/{type_hash}"
 
     @classmethod
-    def from_key_expr(cls, key_expr: str) -> "DataChannel":
-        parts = key_expr.split("/")
-
-        # We are dealing with a data channel for a ROS 2 communication entity in the format of
-        # <domain_id>/<fqn>/<type_name>/<type_hash>
-        if len(parts) < 4:
-            raise ValueError(f"Invalid channel key expression: {key_expr}")
-
-        return cls(
-            domain_id=int(parts[0]),
-            fqn="/".join(parts[1:-2]),
-            type_name=parts[-2],
-            type_hash=parts[-1],
-        )
-
-    @classmethod
     def from_liveliness_token(cls, token: LivelinessToken) -> "DataChannel":
         if token.kind == LivelinessToken.EntityKind.NODE:
-            raise ValueError(
-                f"Cannot create channel from token with entity kind '{token.entity_kind}'."
-            )
+            raise ValueError(f"Invalid entity kind: {token.entity_kind}")
 
         assert token.type_name is not None
         assert token.type_hash is not None

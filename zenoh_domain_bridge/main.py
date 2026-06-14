@@ -24,7 +24,12 @@ def main() -> None:
     )
     logger.info(f"Using session configuration: {session_config_filepath}")
 
-    local_domain_id = int(os.getenv("ROS_DOMAIN_ID", "0"))
+    try:
+        local_domain_id = int(os.getenv("ROS_DOMAIN_ID", "0"))
+    except ValueError:
+        logger.critical("ROS_DOMAIN_ID must be an integer.")
+        exit(1)
+
     bridge_config = BridgeConfig(
         local_domain_id=local_domain_id,
         global_domain_id=0,

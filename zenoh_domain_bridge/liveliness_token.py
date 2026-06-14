@@ -13,8 +13,11 @@ class LivelinessToken:
         MESSAGE_SUBSCRIBER = "MS"
         SERVICE_SERVER = "SS"
         SERVICE_CLIENT = "SC"
+        UNKNOWN = "UK"
 
-    prefix: ClassVar[str] = "@ros2_lv"
+    key_expr_prefix: ClassVar[str] = "@ros2_lv"
+    mangled_fqn_prefix: ClassVar[str] = "%global%"
+
     domain_id: int
     session_id: str
     node_id: str
@@ -31,7 +34,7 @@ class LivelinessToken:
 
     def __repr__(self) -> str:
         parts = [
-            LivelinessToken.prefix,
+            LivelinessToken.key_expr_prefix,
             str(self.domain_id),
             f"..{self.session_id[-6:]}"
             if len(self.session_id) > 8
@@ -101,7 +104,7 @@ class LivelinessToken:
                 backends=parts[13] if len(parts) > 13 else None,
             )
         else:
-            raise ValueError(f"Invalid token key expression: '{key_expr}'")
+            raise ValueError(f"Invalid token key expression: {key_expr}")
 
     @cached_property
     def kind(self) -> EntityKind:
@@ -117,7 +120,7 @@ class LivelinessToken:
             case "SC":
                 return LivelinessToken.EntityKind.SERVICE_CLIENT
             case _:
-                raise ValueError(f"Unknown entity kind: '{self.entity_kind}'")
+                return LivelinessToken.EntityKind.UNKNOWN
 
     @cached_property
     def fqn(self) -> str:
@@ -129,7 +132,7 @@ class LivelinessToken:
 
     @cached_property
     def key_expr(self) -> str:
-        key_expr = f"{LivelinessToken.prefix}/{self.domain_id}/{self.session_id}/{self.node_id}/{self.entity_id}/{self.entity_kind}/{self.mangled_enclave}/{self.mangled_namespace}/{self.node_name}"
+        key_expr = f"{LivelinessToken.key_expr_prefix}/{self.domain_id}/{self.session_id}/{self.node_id}/{self.entity_id}/{self.entity_kind}/{self.mangled_enclave}/{self.mangled_namespace}/{self.node_name}"
 
         if self.kind != LivelinessToken.EntityKind.NODE:
             key_expr += (
