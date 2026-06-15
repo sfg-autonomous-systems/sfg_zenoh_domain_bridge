@@ -15,6 +15,29 @@ logger = logging.getLogger(__name__.split(".")[-1])
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Zenoh Domain Bridge")
+    parser.add_argument(
+        "-l",
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        type=str.upper,
+        help="Set the logging level",
+    )
+    args = parser.parse_args()
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(
+        IndentWrappingFormatter(
+            fmt="%(asctime)s | %(name)-23s | %(levelname)-8s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        handlers=[console_handler],
+    )
+
     session_config_filepath = os.getenv("ZENOH_SESSION_CONFIG_URI")
     session_config = (
         zenoh.Config.from_file(session_config_filepath)
@@ -58,26 +81,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Zenoh Domain Bridge")
-    parser.add_argument(
-        "-l",
-        "--log-level",
-        default="INFO",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        type=str.upper,
-        help="Set the logging level",
-    )
-    args = parser.parse_args()
-
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(
-        IndentWrappingFormatter(
-            fmt="%(asctime)s | %(name)-23s | %(levelname)-8s | %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-    )
-    logging.basicConfig(
-        level=getattr(logging, args.log_level),
-        handlers=[console_handler],
-    )
     main()

@@ -57,6 +57,7 @@
                 "GitHub.copilot",
                 "ms-azuretools.vscode-docker",
                 "redhat.vscode-yaml",
+                "tamasfe.even-better-toml",
                 // Python extensions.
                 "charliermarsh.ruff",
                 "ms-python.mypy-type-checker",
