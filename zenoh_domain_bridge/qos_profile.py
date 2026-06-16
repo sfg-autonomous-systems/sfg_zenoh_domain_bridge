@@ -25,13 +25,13 @@ class QoSProfile:
         needs_keep_all = any(p.history == "KEEP_ALL" for p in profiles)
 
         return cls(
-            # If any profile needs reliability, the bridge must be reliable.
+            # If any profile needs RELIABLE, the bridge must be RELIABLE.
             reliability="RELIABLE" if needs_reliable else "BEST_EFFORT",
-            # If any profile is transient local, the bridge needs to cache
+            # If any profile is TRANSIENT_LOCAL, the bridge must be TRANSIENT_LOCAL.
             durability="TRANSIENT_LOCAL" if needs_transient else "VOLATILE",
-            # If any profile needs KEEP_ALL, the bridge should probably block
+            # If any profile needs KEEP_ALL, the bridge must use KEEP_ALL.
             history="KEEP_ALL" if needs_keep_all else "KEEP_LAST",
-            # The bridge should use the largest requested depth to satisfy all caches.
+            # The bridge should use the largest requested depth to satisfy everyone.
             depth=max((p.depth for p in profiles), default=10),
         )
 
