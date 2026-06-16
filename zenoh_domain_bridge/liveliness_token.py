@@ -18,7 +18,6 @@ class LivelinessToken:
         UNKNOWN = "UK"
 
     key_expr_prefix: ClassVar[str] = "@ros2_lv"
-    mangled_fqn_prefix: ClassVar[str] = "%global%"
 
     domain_id: int
     session_id: str

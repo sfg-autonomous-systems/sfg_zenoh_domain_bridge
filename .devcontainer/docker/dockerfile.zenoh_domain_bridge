@@ -88,7 +88,9 @@ RUN git clone -b "${ZENOH_VERSION}" --depth 1 "https://github.com/eclipse-zenoh/
     sudo cmake --install "build" && sudo ldconfig
 
 RUN pip install --break-system-packages \
-        eclipse-zenoh==${ZENOH_VERSION}
+        eclipse-zenoh==${ZENOH_VERSION} \
+        PyYAML \
+        types-PyYAML
 
 RUN sudo rm -rf "${HOME}/dependencies"
 

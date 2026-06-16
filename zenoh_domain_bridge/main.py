@@ -45,18 +45,13 @@ def main() -> None:
         and Path(session_config_filepath).exists()
         else zenoh.Config()
     )
-    logger.info(f"Using session configuration: {session_config_filepath}")
+    logger.info(f"Using session configuration: {session_config}")
 
-    try:
-        local_domain_id = int(os.getenv("ROS_DOMAIN_ID", "0"))
-    except ValueError:
-        logger.critical("ROS_DOMAIN_ID must be an integer.")
-        exit(1)
-
-    bridge_config = BridgeConfig(
-        local_domain_id=local_domain_id,
-        global_domain_id=0,
-        bridge_name=f"__zenoh_domain_{local_domain_id}_bridge",
+    bridge_config_filepath = os.getenv("ZENOH_BRIDGE_CONFIG_URI")
+    bridge_config = (
+        BridgeConfig.from_file(bridge_config_filepath)
+        if bridge_config_filepath is not None and Path(bridge_config_filepath).exists()
+        else BridgeConfig()
     )
 
     if bridge_config.local_domain_id == bridge_config.global_domain_id:

@@ -1,5 +1,6 @@
 import logging
 import shutil
+import sys
 import textwrap
 
 
@@ -10,7 +11,7 @@ class IndentWrappingFormatter(logging.Formatter):
         message = record.message
 
         # If there's a message and it sits at the end of the format string
-        if message and formatted_string.endswith(message):
+        if message and formatted_string.endswith(message) and sys.stdout.isatty():
             prefix_length = len(formatted_string) - len(message)
             prefix = formatted_string[:prefix_length]
 

@@ -86,14 +86,17 @@ class ZenohLivelinessBridge:
         if token.kind == LivelinessToken.EntityKind.NODE:
             return
 
-        assert token.mangled_fqn is not None
-
-        # We only bridge communication tokens that start with the correct prefix.
-        if not token.mangled_fqn.startswith(LivelinessToken.mangled_fqn_prefix):
-            return
-
         # We do not bridge tokens that were created by this bridge.
         if token.node_name == self._config.bridge_name:
+            return
+
+        assert token.mangled_fqn is not None
+
+        # We only bridge communication tokens that match the user-provided patterns.
+        if not any(
+            pattern.fullmatch(token.mangled_fqn)
+            for pattern in self._config.bridged_mangled_fqn_patterns
+        ):
             return
 
         # We need to bridge this token from the local to the global domain.
