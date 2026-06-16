@@ -93,6 +93,3 @@ RUN pip install --break-system-packages \
 RUN sudo rm -rf "${HOME}/dependencies"
 
 WORKDIR /workspace
-
-ENV ZENOH_ROUTER_CONFIG_URI=/workspace/config/zenoh_router.yaml
-ENV ZENOH_SESSION_CONFIG_URI=/workspace/config/zenoh_session.yaml
