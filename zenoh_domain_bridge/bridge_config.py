@@ -16,14 +16,14 @@ def _get_default_ros_domain_id() -> int:
 class BridgeConfig:
     global_domain_id: int = 0
     local_domain_id: int = field(default_factory=_get_default_ros_domain_id)
-    bridge_name: str | None = None
+    bridge_name: str = ""
     bridged_fqns: list[str] = field(
         default_factory=lambda: [r"/global/.*", r"/tf", r"/tf_static"]
     )
     bridged_mangled_fqn_patterns: list[re.Pattern[str]] = field(init=False)
 
     def __post_init__(self):
-        if self.bridge_name is None:
+        if self.bridge_name == "":
             object.__setattr__(
                 self, "bridge_name", f"__zenoh_domain_{self.local_domain_id}_bridge"
             )

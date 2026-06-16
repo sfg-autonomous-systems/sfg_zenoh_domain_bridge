@@ -1,10 +1,24 @@
 from dataclasses import dataclass
+from typing import ClassVar
 
 import zenoh.ext
 
 
 @dataclass(frozen=True)
 class QoSProfile:
+    _reliability_map: ClassVar[dict[str, str]] = {
+        "1": "RELIABLE",
+        "2": "BEST_EFFORT",
+    }
+    _durability_map: ClassVar[dict[str, str]] = {
+        "1": "TRANSIENT_LOCAL",
+        "2": "VOLATILE",
+    }
+    _history_map: ClassVar[dict[str, str]] = {
+        "1": "KEEP_LAST",
+        "2": "KEEP_ALL",
+    }
+
     reliability: str
     durability: str
     history: str
@@ -49,9 +63,9 @@ class QoSProfile:
             raise ValueError(f"Invalid QoS history string: {parts[2]}")
 
         # Determine values, falling back to defaults if the string part is empty.
-        reliability = parts[0] if parts[0] else "RELIABLE"
-        durability = parts[1] if parts[1] else "VOLATILE"
-        history = history_parts[0] if history_parts[0] else "KEEP_LAST"
+        reliability = cls._reliability_map.get(parts[0], "RELIABLE")
+        durability = cls._durability_map.get(parts[1], "VOLATILE")
+        history = cls._history_map.get(history_parts[0], "KEEP_LAST")
 
         try:
             depth = int(history_parts[1]) if history_parts[1] else 10

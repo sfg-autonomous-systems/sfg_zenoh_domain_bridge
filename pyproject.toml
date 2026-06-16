@@ -9,7 +9,7 @@ description = "A Zenoh client that bridges communication between two ROS domain 
 authors = [
     { name = "Constantin Blessing", email = "constantin.blessing@hs-esslingen.de" },
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = ["eclipse-zenoh==1.8.0", "PyYAML"]
 
 [project.scripts]
