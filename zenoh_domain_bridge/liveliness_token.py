@@ -3,6 +3,8 @@ from enum import Enum
 from functools import cached_property
 from typing import ClassVar
 
+from .qos_profile import QoSProfile
+
 
 # For details on key expressions for ROS 2 liveliness tokens, see https://github.com/ros2/rmw_zenoh/blob/rolling/docs/design.md.
 @dataclass(frozen=True)
@@ -129,6 +131,14 @@ class LivelinessToken:
         )
         assert self.mangled_fqn is not None
         return self.mangled_fqn.replace("%", "/")
+
+    @cached_property
+    def qos_profile(self) -> QoSProfile:
+        assert self.kind != LivelinessToken.EntityKind.NODE, (
+            "Node entities do not have a QoS profile."
+        )
+        assert self.qos is not None
+        return QoSProfile.from_key_expr(self.qos)
 
     @cached_property
     def key_expr(self) -> str:

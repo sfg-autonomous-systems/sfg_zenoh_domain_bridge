@@ -60,6 +60,9 @@ RUN if [ ! $(getent group "${USER_GID}") ]; then \
 # Activate the previously created user.
 USER ${USERNAME}
 
+ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
+
+
 #########################################################################################################
 # Install Zenoh.                                                                                        #
 #########################################################################################################
@@ -68,15 +71,16 @@ ENV PATH="/home/$USERNAME/.cargo/bin:${PATH}"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable && rustup update
 
 WORKDIR ${HOME}/dependencies
+ARG ZENOH_VERSION=1.8.0
 
-RUN git clone -b "1.9.0" --depth 1 "https://github.com/eclipse-zenoh/zenoh-c.git" && \
+RUN git clone -b "${ZENOH_VERSION}" --depth 1 "https://github.com/eclipse-zenoh/zenoh-c.git" && \
     cd "zenoh-c" && \
     cmake -B "build" \
         -DCMAKE_BUILD_TYPE=Release && \
     cmake --build "build" -j$(nproc) && \
     sudo cmake --install "build" && sudo ldconfig
 
-RUN git clone -b "1.9.0" --depth 1 "https://github.com/eclipse-zenoh/zenoh-cpp.git" && \
+RUN git clone -b "${ZENOH_VERSION}" --depth 1 "https://github.com/eclipse-zenoh/zenoh-cpp.git" && \
     cd "zenoh-cpp" && \
     cmake -B "build" \
         -DCMAKE_BUILD_TYPE=Release && \
@@ -84,7 +88,7 @@ RUN git clone -b "1.9.0" --depth 1 "https://github.com/eclipse-zenoh/zenoh-cpp.g
     sudo cmake --install "build" && sudo ldconfig
 
 RUN pip install --break-system-packages \
-        eclipse-zenoh
+        eclipse-zenoh==${ZENOH_VERSION}
 
 RUN sudo rm -rf "${HOME}/dependencies"
 
