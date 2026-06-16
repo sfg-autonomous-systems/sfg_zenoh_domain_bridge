@@ -10,7 +10,7 @@ authors = [
     { name = "Constantin Blessing", email = "constantin.blessing@hs-esslingen.de" },
 ]
 requires-python = ">=3.8"
-dependencies = ["eclipse-zenoh"]
+dependencies = ["eclipse-zenoh==1.8.0"]
 
 [project.scripts]
 zenoh-domain-bridge = "zenoh_domain_bridge.main:main"
