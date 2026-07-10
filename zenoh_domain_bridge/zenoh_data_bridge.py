@@ -170,7 +170,7 @@ class ZenohDataBridge:
         def bridge(query: zenoh.Query):
             replies = self._session.get(
                 supplied.key_expr,
-                target=zenoh.QueryTarget.ALL_COMPLETE,
+                target=zenoh.QueryTarget.BEST_MATCHING,
                 payload=query.payload,
                 encoding=query.encoding,
                 attachment=query.attachment,
@@ -186,9 +186,11 @@ class ZenohDataBridge:
                         encoding=sample.encoding,
                         attachment=sample.attachment,
                     )
+                    break
                 else:
                     logger.error(f"Error from server: {sample.payload.to_string()}")
                     query.reply_err(sample.payload, encoding=sample.encoding)
+                    break
 
         return self._session.declare_queryable(
             demanded.key_expr,
