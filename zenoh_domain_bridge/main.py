@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import random
 import time
 from pathlib import Path
 
@@ -61,11 +62,8 @@ def main() -> None:
     logger.info(f"Using bridge configuration: {bridge_config}")
 
     with zenoh.open(session_config) as session:
-        logger.info("Waiting for Zenoh scouting to complete...")
-        time.sleep(10)
-
         zenoh_data_bridge = ZenohDataBridge(session, bridge_config)
-        _ = ZenohLivelinessBridge(
+        zenoh_liveliness_bridge = ZenohLivelinessBridge(
             session,
             bridge_config,
             on_token_bridged=zenoh_data_bridge.bridge_data,
@@ -74,7 +72,8 @@ def main() -> None:
 
         try:
             while True:
-                time.sleep(1)
+                time.sleep(random.uniform(4, 6))
+                zenoh_liveliness_bridge.sync_liveliness()
         except KeyboardInterrupt:
             pass
 

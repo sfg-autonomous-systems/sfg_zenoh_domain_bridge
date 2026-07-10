@@ -23,9 +23,26 @@ class ZenohLivelinessBridge:
         self._config = config
         self._on_token_bridged = on_token_bridged
         self._on_token_unbridged = on_token_unbridged
+        self._local_key_expr = (
+            f"{LivelinessToken.key_expr_prefix}/{self._config.local_domain_id}/**"
+        )
+        self._global_key_expr = (
+            f"{LivelinessToken.key_expr_prefix}/{self._config.global_domain_id}/**"
+        )
         self._bridged_tokens: dict[LivelinessToken, zenoh.LivelinessToken] = {}
         self._node_liveliness_token = self._announce_bridge()
         self._initialize_liveliness()
+        self.sync_liveliness()
+
+    def sync_liveliness(self) -> None:
+        for reply in itertools.chain(
+            self._session.liveliness().get(self._local_key_expr),
+            self._session.liveliness().get(self._global_key_expr),
+        ):
+            sample = reply.result
+
+            if isinstance(sample, zenoh.Sample):
+                self._handle_token(sample)
 
     def _announce_bridge(self) -> zenoh.LivelinessToken:
         token = LivelinessToken(
@@ -42,35 +59,17 @@ class ZenohLivelinessBridge:
         return self._session.liveliness().declare_token(token.key_expr)
 
     def _initialize_liveliness(self) -> None:
-        local_key_expr = (
-            f"{LivelinessToken.key_expr_prefix}/{self._config.local_domain_id}/**"
-        )
-        global_key_expr = (
-            f"{LivelinessToken.key_expr_prefix}/{self._config.global_domain_id}/**"
-        )
         logger.info(
-            f"Listening to tokens on '{local_key_expr}' and '{global_key_expr}'..."
+            f"Listening to tokens on '{self._local_key_expr}' and '{self._global_key_expr}'..."
         )
         self._session.liveliness().declare_subscriber(
-            local_key_expr,
+            self._local_key_expr,
             self._handle_token,
         )
         self._session.liveliness().declare_subscriber(
-            global_key_expr,
+            self._global_key_expr,
             self._handle_token,
         )
-
-        logger.info(
-            f"Querying existing tokens on '{local_key_expr}' and '{global_key_expr}'..."
-        )
-        for reply in itertools.chain(
-            self._session.liveliness().get(local_key_expr),
-            self._session.liveliness().get(global_key_expr),
-        ):
-            sample = reply.result
-
-            if isinstance(sample, zenoh.Sample):
-                self._handle_token(sample)
 
     def _handle_token(
         self,
