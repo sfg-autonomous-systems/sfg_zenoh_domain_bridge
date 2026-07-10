@@ -79,7 +79,7 @@ class ZenohDataBridge:
         # Topics are demand and supply-driven to ensure that we only bridge channels
         # that are actually required. In contrast, services are only supply-driven because
         # (1) they do not consume resources when bridged without demand and (2) a fast lived
-        # client that immediately calls the service after it appears results in zenoh dropping the
+        # client that immediately calls the service after it appears results in Zenoh dropping the
         # query because the server is not bridged in time.
         should_be_bridged = has_supply if is_service else (has_demand and has_supply)
 
@@ -144,12 +144,6 @@ class ZenohDataBridge:
         )
 
         def bridge(sample: zenoh.Sample):
-            # Prevent loops.
-            if sample.source_info is not None and str(
-                sample.source_info.source_id.zid
-            ) == str(self._session.zid()):
-                return
-
             publisher.put(
                 sample.payload,
                 encoding=sample.encoding,

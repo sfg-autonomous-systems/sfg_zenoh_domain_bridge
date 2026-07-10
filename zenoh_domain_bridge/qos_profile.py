@@ -128,7 +128,8 @@ class QoSProfile:
         zenoh.ext.RecoveryConfig | None,
         bool,
     ]:
-        allowed_origin = None
+        # Prevents loops.
+        allowed_origin = zenoh.Locality.REMOTE
         history = None
         recovery = None
         subscriber_detection = False

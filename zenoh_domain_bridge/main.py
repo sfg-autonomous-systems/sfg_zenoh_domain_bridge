@@ -61,6 +61,9 @@ def main() -> None:
     logger.info(f"Using bridge configuration: {bridge_config}")
 
     with zenoh.open(session_config) as session:
+        logger.info("Waiting for Zenoh scouting to complete...")
+        time.sleep(10)
+
         zenoh_data_bridge = ZenohDataBridge(session, bridge_config)
         _ = ZenohLivelinessBridge(
             session,
@@ -68,6 +71,7 @@ def main() -> None:
             on_token_bridged=zenoh_data_bridge.bridge_data,
             on_token_unbridged=zenoh_data_bridge.unbridge_data,
         )
+
         try:
             while True:
                 time.sleep(1)
