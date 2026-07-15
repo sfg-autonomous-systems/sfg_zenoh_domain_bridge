@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "zenoh_domain_bridge"
+name = "sfg_zenoh_domain_bridge"
 version = "0.1.0"
 description = "A Zenoh client that bridges communication between two ROS domain IDs."
 authors = [
@@ -13,8 +13,8 @@ requires-python = ">=3.10"
 dependencies = ["eclipse-zenoh==1.8.0", "PyYAML"]
 
 [project.scripts]
-zenoh-domain-bridge = "zenoh_domain_bridge.main:main"
+sfg-zenoh-domain-bridge = "sfg_zenoh_domain_bridge.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["zenoh_domain_bridge*"]
+include = ["sfg_zenoh_domain_bridge*"]
