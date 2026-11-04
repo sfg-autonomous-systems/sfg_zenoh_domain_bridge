@@ -1,7 +1,7 @@
-import itertools
 import logging
+from collections.abc import Callable
 from dataclasses import replace
-from typing import Callable
+from threading import Event
 
 import zenoh
 
@@ -35,10 +35,26 @@ class ZenohLivelinessBridge:
         self.sync_liveliness()
 
     def sync_liveliness(self) -> None:
-        for reply in itertools.chain(
-            self._session.liveliness().get(self._local_key_expr),
-            self._session.liveliness().get(self._global_key_expr),
-        ):
+        dones: list[Event] = []
+        replies: list[zenoh.Reply] = []
+
+        for key_expr in (self._local_key_expr, self._global_key_expr):
+            done = Event()
+            dones.append(done)
+
+            # Zenoh delivers known tokens on the calling thread while holding the
+            # session state lock, so get() deadlocked once its default 256-slot channel
+            # was full. Collect replies through a callback instead, and handle them
+            # only after both queries have ended.
+            self._session.liveliness().get(
+                key_expr,
+                zenoh.handlers.Callback(replies.append, done.set),
+            )
+
+        for done in dones:
+            done.wait()
+
+        for reply in replies:
             sample = reply.result
 
             if isinstance(sample, zenoh.Sample):
