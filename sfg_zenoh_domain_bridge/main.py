@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import random
+import sys
 import time
 from pathlib import Path
 
@@ -57,7 +58,7 @@ def main() -> None:
 
     if bridge_config.local_domain_id == bridge_config.global_domain_id:
         logger.critical("ROS_DOMAIN_ID must be different from the global domain ID 0.")
-        exit(1)
+        sys.exit(1)
 
     logger.info(f"Using bridge configuration: {bridge_config}")
 
