@@ -1,6 +1,6 @@
 {
     "name": "SFG Zenoh Domain Bridge",
-    "dockerComposeFile": "${localWorkspaceFolder}/.devcontainer/compose/compose.sfg_zenoh_domain_bridge.yaml",
+    "dockerComposeFile": "${localWorkspaceFolder}/.devcontainer/compose.yaml",
     "service": "sfg_zenoh_domain_bridge",
     "overrideCommand": true,
     "workspaceFolder": "/workspace",
