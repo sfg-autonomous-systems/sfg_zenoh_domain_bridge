@@ -34,7 +34,6 @@ class ZenohLivelinessBridge:
         self._pending_tokens: SimpleQueue[zenoh.Sample] = SimpleQueue()
         self._node_liveliness_token = self._announce_bridge()
         self._initialize_liveliness()
-        self.sync_liveliness()
 
     def sync_liveliness(self) -> None:
         dones: list[Event] = []
@@ -56,11 +55,23 @@ class ZenohLivelinessBridge:
         for done in dones:
             done.wait()
 
+        tokens_to_unbridge = set(self._bridged_tokens)
+
         for reply in replies:
             sample = reply.result
 
-            if isinstance(sample, zenoh.Sample):
-                self._handle_token(sample)
+            if not isinstance(sample, zenoh.Sample):
+                logger.warning(f"Liveliness query failed: {sample.payload.to_string()}")
+                continue
+
+            token = self._handle_token(sample)
+
+            if token is not None:
+                tokens_to_unbridge.discard(token)
+
+        # Unbridge stale tokens that were not returned by the queries.
+        for token in tokens_to_unbridge:
+            self._unbridge_token(token, self._get_target_domain_id(token))
 
     def handle_pending_tokens(self, timeout: float = 0.1) -> None:
         while True:
@@ -96,23 +107,29 @@ class ZenohLivelinessBridge:
             self._pending_tokens.put,
         )
 
+    def _get_target_domain_id(self, token: LivelinessToken) -> int:
+        if token.domain_id == self._config.local_domain_id:
+            return self._config.global_domain_id
+
+        return self._config.local_domain_id
+
     def _handle_token(
         self,
         sample: zenoh.Sample,
-    ) -> None:
+    ) -> LivelinessToken | None:
         try:
             token = LivelinessToken.from_key_expr(str(sample.key_expr))
         except ValueError as error:
             logger.error(error)
-            return
+            return None
 
         # We do not bridge node tokens.
         if token.kind == LivelinessToken.EntityKind.NODE:
-            return
+            return None
 
         # We do not bridge tokens that were created by this bridge.
         if token.node_name == self._config.bridge_name:
-            return
+            return None
 
         assert token.mangled_fqn is not None
 
@@ -121,20 +138,15 @@ class ZenohLivelinessBridge:
             pattern.fullmatch(token.mangled_fqn)
             for pattern in self._config.bridged_mangled_fqn_patterns
         ):
-            return
-
-        # We need to bridge this token from the local to the global domain.
-        target_domain_id = (
-            self._config.global_domain_id
-            if token.domain_id == self._config.local_domain_id
-            else self._config.local_domain_id
-        )
+            return None
 
         match sample.kind:
             case zenoh.SampleKind.PUT:
-                self._bridge_token(token, target_domain_id)
+                self._bridge_token(token, self._get_target_domain_id(token))
             case zenoh.SampleKind.DELETE:
-                self._unbridge_token(token, target_domain_id)
+                self._unbridge_token(token, self._get_target_domain_id(token))
+
+        return token
 
     def _bridge_token(
         self,
