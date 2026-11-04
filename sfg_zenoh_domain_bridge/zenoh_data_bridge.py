@@ -168,15 +168,7 @@ class ZenohDataBridge:
         supplied: DataChannel,
     ) -> zenoh.Queryable:
         def bridge(query: zenoh.Query):
-            replies = self._session.get(
-                supplied.key_expr,
-                target=zenoh.QueryTarget.BEST_MATCHING,
-                payload=query.payload,
-                encoding=query.encoding,
-                attachment=query.attachment,
-            )
-
-            for reply in replies:
+            def forward(reply: zenoh.Reply) -> None:
                 sample = reply.result
 
                 if isinstance(sample, zenoh.Sample):
@@ -186,11 +178,27 @@ class ZenohDataBridge:
                         encoding=sample.encoding,
                         attachment=sample.attachment,
                     )
-                    break
                 else:
                     logger.error(f"Error from server: {sample.payload.to_string()}")
                     query.reply_err(sample.payload, encoding=sample.encoding)
-                    break
+
+            timeout = None
+            # Zenoh ends a query after 10 s by default. The get_result service of an action
+            # only replies once the goal has finished, which can take much longer, so the bridge
+            # must not end that query early. rmw_zenoh makes the same exception for its clients:
+            # https://github.com/ros2/rmw_zenoh/blob/c49176dc15edfcb1f176f7bfb14cf71469cfd341/rmw_zenoh_cpp/src/detail/rmw_client_data.cpp#L137-L146
+            if supplied.fqn.endswith("/_action/get_result"):
+                timeout = 100 * 365 * 24 * 3600
+
+            self._session.get(
+                supplied.key_expr,
+                target=zenoh.QueryTarget.BEST_MATCHING,
+                payload=query.payload,
+                encoding=query.encoding,
+                attachment=query.attachment,
+                handler=zenoh.handlers.Callback(forward, query.drop),
+                timeout=timeout,
+            )
 
         return self._session.declare_queryable(
             demanded.key_expr,
