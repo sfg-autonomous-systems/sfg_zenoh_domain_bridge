@@ -71,10 +71,17 @@ def main() -> None:
             on_token_unbridged=zenoh_data_bridge.unbridge_data,
         )
 
+        next_sync_time = time.monotonic()
+
         try:
             while True:
-                time.sleep(random.uniform(4, 6))
-                zenoh_liveliness_bridge.sync_liveliness()
+                current_time = time.monotonic()
+
+                if current_time >= next_sync_time:
+                    zenoh_liveliness_bridge.sync_liveliness()
+                    next_sync_time = current_time + random.uniform(4, 6)
+
+                zenoh_liveliness_bridge.handle_pending_tokens()
         except KeyboardInterrupt:
             pass
 

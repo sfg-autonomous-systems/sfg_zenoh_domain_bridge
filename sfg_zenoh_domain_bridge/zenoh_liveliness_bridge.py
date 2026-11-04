@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Callable
 from dataclasses import replace
+from queue import Empty, SimpleQueue
 from threading import Event
 
 import zenoh
@@ -30,6 +31,7 @@ class ZenohLivelinessBridge:
             f"{LivelinessToken.key_expr_prefix}/{self._config.global_domain_id}/**"
         )
         self._bridged_tokens: dict[LivelinessToken, zenoh.LivelinessToken] = {}
+        self._pending_tokens: SimpleQueue[zenoh.Sample] = SimpleQueue()
         self._node_liveliness_token = self._announce_bridge()
         self._initialize_liveliness()
         self.sync_liveliness()
@@ -60,6 +62,13 @@ class ZenohLivelinessBridge:
             if isinstance(sample, zenoh.Sample):
                 self._handle_token(sample)
 
+    def handle_pending_tokens(self, timeout: float = 0.1) -> None:
+        while True:
+            try:
+                self._handle_token(self._pending_tokens.get(timeout=timeout))
+            except Empty:
+                break
+
     def _announce_bridge(self) -> zenoh.LivelinessToken:
         token = LivelinessToken(
             domain_id=self._config.global_domain_id,
@@ -80,11 +89,11 @@ class ZenohLivelinessBridge:
         )
         self._session.liveliness().declare_subscriber(
             self._local_key_expr,
-            self._handle_token,
+            self._pending_tokens.put,
         )
         self._session.liveliness().declare_subscriber(
             self._global_key_expr,
-            self._handle_token,
+            self._pending_tokens.put,
         )
 
     def _handle_token(
@@ -152,7 +161,10 @@ class ZenohLivelinessBridge:
         logger.debug(f"Bridged token: {token} -> {bridged_token}")
 
         if self._on_token_bridged:
-            self._on_token_bridged(token)
+            try:
+                self._on_token_bridged(token)
+            except Exception as error:  # noqa: BLE001
+                logger.error(f"Error in callback for token '{token}': {error}")
 
     def _unbridge_token(
         self,
@@ -178,4 +190,7 @@ class ZenohLivelinessBridge:
         logger.debug(f"Unbridged token: {token} -> {bridged_token}")
 
         if self._on_token_unbridged:
-            self._on_token_unbridged(token)
+            try:
+                self._on_token_unbridged(token)
+            except Exception as error:  # noqa: BLE001
+                logger.error(f"Error in callback for token '{token}': {error}")

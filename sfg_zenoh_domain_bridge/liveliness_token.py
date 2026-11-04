@@ -76,6 +76,9 @@ class LivelinessToken:
         # We are dealing with a liveliness token for a ROS 2 node in the format of
         # @ros2_lv/<domain_id>/<session_id>/<node_id>/<node_id>/<entity_kind>/<mangled_enclave>/<mangled_namespace>/<node_name>
         if len(parts) == 9:
+            if parts[5] != cls.EntityKind.NODE.value:
+                raise ValueError(f"Invalid token key expression: {key_expr}")
+
             return cls(
                 domain_id=int(parts[1]),
                 session_id=parts[2],
