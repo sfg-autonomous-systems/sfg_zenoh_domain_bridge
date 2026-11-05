@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from functools import cached_property
 
@@ -23,7 +25,7 @@ class DataChannel:
         return f"{self.domain_id}/{self.fqn[1:]}/{self.type_name}/{type_hash}"
 
     @classmethod
-    def from_liveliness_token(cls, token: LivelinessToken) -> "DataChannel":
+    def from_liveliness_token(cls, token: LivelinessToken) -> DataChannel:
         if token.kind == LivelinessToken.EntityKind.NODE:
             raise ValueError(f"Invalid entity kind: {token.entity_kind}")
 

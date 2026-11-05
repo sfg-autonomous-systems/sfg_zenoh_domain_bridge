@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from dataclasses import replace
 
@@ -143,7 +145,7 @@ class ZenohDataBridge:
             publisher_detection=publisher_options[4],
         )
 
-        def bridge(sample: zenoh.Sample):
+        def bridge(sample: zenoh.Sample) -> None:
             publisher.put(
                 sample.payload,
                 encoding=sample.encoding,
@@ -167,7 +169,7 @@ class ZenohDataBridge:
         demanded: DataChannel,
         supplied: DataChannel,
     ) -> zenoh.Queryable:
-        def bridge(query: zenoh.Query):
+        def bridge(query: zenoh.Query) -> None:
             def forward(reply: zenoh.Reply) -> None:
                 sample = reply.result
 

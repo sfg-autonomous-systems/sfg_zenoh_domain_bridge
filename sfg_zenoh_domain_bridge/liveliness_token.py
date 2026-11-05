@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
@@ -70,7 +72,7 @@ class LivelinessToken:
         return "/".join(parts)
 
     @classmethod
-    def from_key_expr(cls, key_expr: str) -> "LivelinessToken":
+    def from_key_expr(cls, key_expr: str) -> LivelinessToken:
         parts = key_expr.split("/")
 
         # We are dealing with a liveliness token for a ROS 2 node in the format of
