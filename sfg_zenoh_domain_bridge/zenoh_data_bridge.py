@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import replace
 
 import zenoh
@@ -15,6 +16,34 @@ logger = logging.getLogger(__name__.split(".")[-1])
 
 
 class ZenohDataBridge:
+    # Lets the subscriber callback thread and the main thread share a publisher safely.
+    # zenoh-python releases the GIL while put() sends, so the main thread can call
+    # undeclare() mid-put. That raises "RuntimeError: Already borrowed", which during
+    # a QoS rebuild leaves the topic unbridged. The lock makes undeclare() wait for a
+    # running put(). The closed flag drops samples that were already queued for the
+    # callback and arrive after undeclare(), instead of logging "Undeclared publisher" errors.
+    class GuardedPublisher:
+        def __init__(self, publisher: zenoh.ext.AdvancedPublisher) -> None:
+            self._publisher = publisher
+            self._lock = threading.Lock()
+            self._closed = False
+
+        def put(self, sample: zenoh.Sample) -> None:
+            with self._lock:
+                if self._closed:
+                    return
+
+                self._publisher.put(
+                    sample.payload,
+                    encoding=sample.encoding,
+                    attachment=sample.attachment,
+                )
+
+        def undeclare(self) -> None:
+            with self._lock:
+                self._closed = True
+                self._publisher.undeclare()
+
     def __init__(
         self,
         session: zenoh.Session,
@@ -26,7 +55,11 @@ class ZenohDataBridge:
         # We keep track of the currently bridged data channels to avoid bridging the same channel multiple times.
         self._bridged_channels: dict[
             DataChannel,
-            tuple[zenoh.ext.AdvancedPublisher, zenoh.ext.AdvancedSubscriber, QoSProfile]
+            tuple[
+                ZenohDataBridge.GuardedPublisher,
+                zenoh.ext.AdvancedSubscriber,
+                QoSProfile,
+            ]
             | zenoh.Queryable,
         ] = {}
 
@@ -133,24 +166,26 @@ class ZenohDataBridge:
         demanded: DataChannel,
         supplied: DataChannel,
         qos: QoSProfile,
-    ) -> tuple[zenoh.ext.AdvancedPublisher, zenoh.ext.AdvancedSubscriber, QoSProfile]:
+    ) -> tuple[
+        ZenohDataBridge.GuardedPublisher,
+        zenoh.ext.AdvancedSubscriber,
+        QoSProfile,
+    ]:
         publisher_options = qos.to_publisher_options()
-        publisher = zenoh.ext.declare_advanced_publisher(
-            self._session,
-            demanded.key_expr,
-            congestion_control=publisher_options[0],
-            reliability=publisher_options[1],
-            cache=publisher_options[2],
-            sample_miss_detection=publisher_options[3],
-            publisher_detection=publisher_options[4],
+        publisher = ZenohDataBridge.GuardedPublisher(
+            zenoh.ext.declare_advanced_publisher(
+                self._session,
+                demanded.key_expr,
+                congestion_control=publisher_options[0],
+                reliability=publisher_options[1],
+                cache=publisher_options[2],
+                sample_miss_detection=publisher_options[3],
+                publisher_detection=publisher_options[4],
+            )
         )
 
         def bridge(sample: zenoh.Sample) -> None:
-            publisher.put(
-                sample.payload,
-                encoding=sample.encoding,
-                attachment=sample.attachment,
-            )
+            publisher.put(sample)
 
         subscriber_options = qos.to_subscriber_options()
         subscriber = zenoh.ext.declare_advanced_subscriber(
@@ -223,7 +258,7 @@ class ZenohDataBridge:
             queryable.undeclare()
         else:
             publisher, subscriber, _ = self._bridged_channels.pop(supplied)
-            assert isinstance(publisher, zenoh.ext.AdvancedPublisher)
+            assert isinstance(publisher, ZenohDataBridge.GuardedPublisher)
             assert isinstance(subscriber, zenoh.ext.AdvancedSubscriber)
             subscriber.undeclare()
             publisher.undeclare()
