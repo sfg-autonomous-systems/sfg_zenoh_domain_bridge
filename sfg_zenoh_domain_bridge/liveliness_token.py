@@ -12,12 +12,12 @@ from .qos_profile import QoSProfile
 @dataclass(frozen=True)
 class LivelinessToken:
     class EntityKind(Enum):
-        NODE = "NN"
-        MESSAGE_PUBLISHER = "MP"
-        MESSAGE_SUBSCRIBER = "MS"
-        SERVICE_SERVER = "SS"
-        SERVICE_CLIENT = "SC"
-        UNKNOWN = "UK"
+        Node = "NN"
+        MessagePublisher = "MP"
+        MessageSubscriber = "MS"
+        ServiceServer = "SS"
+        ServiceClient = "SC"
+        Unknown = "UK"
 
     key_expr_prefix: ClassVar[str] = "@ros2_lv"
 
@@ -50,7 +50,7 @@ class LivelinessToken:
             self.node_name,
         ]
 
-        if self.kind != LivelinessToken.EntityKind.NODE:
+        if self.kind != LivelinessToken.EntityKind.Node:
             type_hash = (
                 f"..{self.type_hash[-6:]}"
                 if self.type_hash and len(self.type_hash) > 8
@@ -78,7 +78,7 @@ class LivelinessToken:
         # We are dealing with a liveliness token for a ROS 2 node in the format of
         # @ros2_lv/<domain_id>/<session_id>/<node_id>/<node_id>/<entity_kind>/<mangled_enclave>/<mangled_namespace>/<node_name>
         if len(parts) == 9:
-            if parts[5] != cls.EntityKind.NODE.value:
+            if parts[5] != cls.EntityKind.Node.value:
                 raise ValueError(f"Invalid token key expression: {key_expr}")
 
             return cls(
@@ -116,21 +116,21 @@ class LivelinessToken:
     def kind(self) -> EntityKind:
         match self.entity_kind:
             case "NN":
-                return LivelinessToken.EntityKind.NODE
+                return LivelinessToken.EntityKind.Node
             case "MP":
-                return LivelinessToken.EntityKind.MESSAGE_PUBLISHER
+                return LivelinessToken.EntityKind.MessagePublisher
             case "MS":
-                return LivelinessToken.EntityKind.MESSAGE_SUBSCRIBER
+                return LivelinessToken.EntityKind.MessageSubscriber
             case "SS":
-                return LivelinessToken.EntityKind.SERVICE_SERVER
+                return LivelinessToken.EntityKind.ServiceServer
             case "SC":
-                return LivelinessToken.EntityKind.SERVICE_CLIENT
+                return LivelinessToken.EntityKind.ServiceClient
             case _:
-                return LivelinessToken.EntityKind.UNKNOWN
+                return LivelinessToken.EntityKind.Unknown
 
     @cached_property
     def fqn(self) -> str:
-        assert self.kind != LivelinessToken.EntityKind.NODE, (
+        assert self.kind != LivelinessToken.EntityKind.Node, (
             "Node entities do not have a qualified name."
         )
         assert self.mangled_fqn is not None
@@ -138,7 +138,7 @@ class LivelinessToken:
 
     @cached_property
     def qos_profile(self) -> QoSProfile:
-        assert self.kind != LivelinessToken.EntityKind.NODE, (
+        assert self.kind != LivelinessToken.EntityKind.Node, (
             "Node entities do not have a QoS profile."
         )
         assert self.qos is not None
@@ -148,7 +148,7 @@ class LivelinessToken:
     def key_expr(self) -> str:
         key_expr = f"{LivelinessToken.key_expr_prefix}/{self.domain_id}/{self.session_id}/{self.node_id}/{self.entity_id}/{self.entity_kind}/{self.mangled_enclave}/{self.mangled_namespace}/{self.node_name}"
 
-        if self.kind != LivelinessToken.EntityKind.NODE:
+        if self.kind != LivelinessToken.EntityKind.Node:
             key_expr += (
                 f"/{self.mangled_fqn}/{self.type_name}/{self.type_hash}/{self.qos}"
             )

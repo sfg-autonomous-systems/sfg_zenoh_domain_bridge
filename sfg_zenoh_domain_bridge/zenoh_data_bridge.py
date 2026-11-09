@@ -83,12 +83,12 @@ class ZenohDataBridge:
         counterpart_channel = self._get_counterpart_channel(channel)
 
         is_publisher = token.kind in (
-            LivelinessToken.EntityKind.MESSAGE_PUBLISHER,
-            LivelinessToken.EntityKind.SERVICE_SERVER,
+            LivelinessToken.EntityKind.MessagePublisher,
+            LivelinessToken.EntityKind.ServiceServer,
         )
         is_service = token.kind in (
-            LivelinessToken.EntityKind.SERVICE_SERVER,
-            LivelinessToken.EntityKind.SERVICE_CLIENT,
+            LivelinessToken.EntityKind.ServiceServer,
+            LivelinessToken.EntityKind.ServiceClient,
         )
 
         if is_publisher:
@@ -220,7 +220,7 @@ class ZenohDataBridge:
                     query.reply_err(sample.payload, encoding=sample.encoding)
 
             timeout = None
-            # Zenoh ends a query after 10 s by default. The get_result service of an action
+            # Zenoh ends a query after 10s by default. The get_result service of an action
             # only replies once the goal has finished, which can take much longer, so the bridge
             # must not end that query early. rmw_zenoh makes the same exception for its clients:
             # https://github.com/ros2/rmw_zenoh/blob/c49176dc15edfcb1f176f7bfb14cf71469cfd341/rmw_zenoh_cpp/src/detail/rmw_client_data.cpp#L137-L146

@@ -88,7 +88,7 @@ class ZenohLivelinessBridge:
             session_id=str(self._session.zid()),
             node_id="0",
             entity_id="0",
-            entity_kind=LivelinessToken.EntityKind.NODE.value,
+            entity_kind=LivelinessToken.EntityKind.Node.value,
             mangled_enclave="%",
             mangled_namespace="%",
             node_name=self._config.bridge_name,
@@ -126,7 +126,7 @@ class ZenohLivelinessBridge:
             return None
 
         # We do not bridge node tokens.
-        if token.kind == LivelinessToken.EntityKind.NODE:
+        if token.kind == LivelinessToken.EntityKind.Node:
             return None
 
         # We do not bridge tokens that were created by this bridge.

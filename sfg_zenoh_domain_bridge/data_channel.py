@@ -26,7 +26,7 @@ class DataChannel:
 
     @classmethod
     def from_liveliness_token(cls, token: LivelinessToken) -> DataChannel:
-        if token.kind == LivelinessToken.EntityKind.NODE:
+        if token.kind == LivelinessToken.EntityKind.Node:
             raise ValueError(f"Invalid entity kind: {token.entity_kind}")
 
         assert token.type_name is not None
