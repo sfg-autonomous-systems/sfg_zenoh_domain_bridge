@@ -1,6 +1,6 @@
 {
     "name": "SFG Zenoh Domain Bridge",
-    "dockerComposeFile": "${localWorkspaceFolder}/.devcontainer/compose/compose.sfg_zenoh_domain_bridge.yaml",
+    "dockerComposeFile": "${localWorkspaceFolder}/.devcontainer/compose.yaml",
     "service": "sfg_zenoh_domain_bridge",
     "overrideCommand": true,
     "workspaceFolder": "/workspace",
@@ -40,17 +40,7 @@
                 },
                 "mypy-type-checker.args": [
                     "--config-file=${containerWorkspaceFolder}/.vscode/mypy.ini"
-                ],
-                // C++ settings.
-                "C_Cpp.clang_format_style": "file:${containerWorkspaceFolder}/.vscode/clang_format.yaml",
-                "[cpp]": {
-                    "editor.defaultFormatter": "ms-vscode.cpptools"
-                },
-                "[cmake]": {
-                    "editor.defaultFormatter": "josetr.cmake-language-support-vscode"
-                },
-                "cmake.languageSupport.dotnetPath": "/usr/bin/dotnet",
-                "cmake.configureOnOpen": false
+                ]
             },
             "extensions": [
                 // General extensions.
@@ -63,12 +53,7 @@
                 "charliermarsh.ruff",
                 "ms-python.mypy-type-checker",
                 "ms-python.python",
-                "njpwerner.autodocstring",
-                // C++ extensions.
-                "cschlosser.doxdocgen",
-                "jeff-hykin.better-cpp-syntax",
-                "josetr.cmake-language-support-vscode",
-                "ms-vscode.cpptools-extension-pack"
+                "njpwerner.autodocstring"
             ]
         }
     }

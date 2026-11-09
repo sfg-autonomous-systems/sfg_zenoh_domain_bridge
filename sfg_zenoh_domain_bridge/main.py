@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import argparse
 import logging
 import os
 import random
+import sys
 import time
 from pathlib import Path
 
@@ -57,7 +60,7 @@ def main() -> None:
 
     if bridge_config.local_domain_id == bridge_config.global_domain_id:
         logger.critical("ROS_DOMAIN_ID must be different from the global domain ID 0.")
-        exit(1)
+        sys.exit(1)
 
     logger.info(f"Using bridge configuration: {bridge_config}")
 
@@ -70,10 +73,17 @@ def main() -> None:
             on_token_unbridged=zenoh_data_bridge.unbridge_data,
         )
 
+        next_sync_time = time.monotonic()
+
         try:
             while True:
-                time.sleep(random.uniform(4, 6))
-                zenoh_liveliness_bridge.sync_liveliness()
+                current_time = time.monotonic()
+
+                if current_time >= next_sync_time:
+                    zenoh_liveliness_bridge.sync_liveliness()
+                    next_sync_time = current_time + random.uniform(4, 6)
+
+                zenoh_liveliness_bridge.handle_pending_tokens()
         except KeyboardInterrupt:
             pass
 

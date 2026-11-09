@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import logging
+import threading
 from dataclasses import replace
 
 import zenoh
@@ -13,6 +16,34 @@ logger = logging.getLogger(__name__.split(".")[-1])
 
 
 class ZenohDataBridge:
+    # Lets the subscriber callback thread and the main thread share a publisher safely.
+    # zenoh-python releases the GIL while put() sends, so the main thread can call
+    # undeclare() mid-put. That raises "RuntimeError: Already borrowed", which during
+    # a QoS rebuild leaves the topic unbridged. The lock makes undeclare() wait for a
+    # running put(). The closed flag drops samples that were already queued for the
+    # callback and arrive after undeclare(), instead of logging "Undeclared publisher" errors.
+    class GuardedPublisher:
+        def __init__(self, publisher: zenoh.ext.AdvancedPublisher) -> None:
+            self._publisher = publisher
+            self._lock = threading.Lock()
+            self._closed = False
+
+        def put(self, sample: zenoh.Sample) -> None:
+            with self._lock:
+                if self._closed:
+                    return
+
+                self._publisher.put(
+                    sample.payload,
+                    encoding=sample.encoding,
+                    attachment=sample.attachment,
+                )
+
+        def undeclare(self) -> None:
+            with self._lock:
+                self._closed = True
+                self._publisher.undeclare()
+
     def __init__(
         self,
         session: zenoh.Session,
@@ -24,7 +55,11 @@ class ZenohDataBridge:
         # We keep track of the currently bridged data channels to avoid bridging the same channel multiple times.
         self._bridged_channels: dict[
             DataChannel,
-            tuple[zenoh.ext.AdvancedPublisher, zenoh.ext.AdvancedSubscriber, QoSProfile]
+            tuple[
+                ZenohDataBridge.GuardedPublisher,
+                zenoh.ext.AdvancedSubscriber,
+                QoSProfile,
+            ]
             | zenoh.Queryable,
         ] = {}
 
@@ -48,12 +83,12 @@ class ZenohDataBridge:
         counterpart_channel = self._get_counterpart_channel(channel)
 
         is_publisher = token.kind in (
-            LivelinessToken.EntityKind.MESSAGE_PUBLISHER,
-            LivelinessToken.EntityKind.SERVICE_SERVER,
+            LivelinessToken.EntityKind.MessagePublisher,
+            LivelinessToken.EntityKind.ServiceServer,
         )
         is_service = token.kind in (
-            LivelinessToken.EntityKind.SERVICE_SERVER,
-            LivelinessToken.EntityKind.SERVICE_CLIENT,
+            LivelinessToken.EntityKind.ServiceServer,
+            LivelinessToken.EntityKind.ServiceClient,
         )
 
         if is_publisher:
@@ -131,24 +166,26 @@ class ZenohDataBridge:
         demanded: DataChannel,
         supplied: DataChannel,
         qos: QoSProfile,
-    ) -> tuple[zenoh.ext.AdvancedPublisher, zenoh.ext.AdvancedSubscriber, QoSProfile]:
+    ) -> tuple[
+        ZenohDataBridge.GuardedPublisher,
+        zenoh.ext.AdvancedSubscriber,
+        QoSProfile,
+    ]:
         publisher_options = qos.to_publisher_options()
-        publisher = zenoh.ext.declare_advanced_publisher(
-            self._session,
-            demanded.key_expr,
-            congestion_control=publisher_options[0],
-            reliability=publisher_options[1],
-            cache=publisher_options[2],
-            sample_miss_detection=publisher_options[3],
-            publisher_detection=publisher_options[4],
+        publisher = ZenohDataBridge.GuardedPublisher(
+            zenoh.ext.declare_advanced_publisher(
+                self._session,
+                demanded.key_expr,
+                congestion_control=publisher_options[0],
+                reliability=publisher_options[1],
+                cache=publisher_options[2],
+                sample_miss_detection=publisher_options[3],
+                publisher_detection=publisher_options[4],
+            )
         )
 
-        def bridge(sample: zenoh.Sample):
-            publisher.put(
-                sample.payload,
-                encoding=sample.encoding,
-                attachment=sample.attachment,
-            )
+        def bridge(sample: zenoh.Sample) -> None:
+            publisher.put(sample)
 
         subscriber_options = qos.to_subscriber_options()
         subscriber = zenoh.ext.declare_advanced_subscriber(
@@ -167,16 +204,8 @@ class ZenohDataBridge:
         demanded: DataChannel,
         supplied: DataChannel,
     ) -> zenoh.Queryable:
-        def bridge(query: zenoh.Query):
-            replies = self._session.get(
-                supplied.key_expr,
-                target=zenoh.QueryTarget.BEST_MATCHING,
-                payload=query.payload,
-                encoding=query.encoding,
-                attachment=query.attachment,
-            )
-
-            for reply in replies:
+        def bridge(query: zenoh.Query) -> None:
+            def forward(reply: zenoh.Reply) -> None:
                 sample = reply.result
 
                 if isinstance(sample, zenoh.Sample):
@@ -186,11 +215,27 @@ class ZenohDataBridge:
                         encoding=sample.encoding,
                         attachment=sample.attachment,
                     )
-                    break
                 else:
                     logger.error(f"Error from server: {sample.payload.to_string()}")
                     query.reply_err(sample.payload, encoding=sample.encoding)
-                    break
+
+            timeout = None
+            # Zenoh ends a query after 10s by default. The get_result service of an action
+            # only replies once the goal has finished, which can take much longer, so the bridge
+            # must not end that query early. rmw_zenoh makes the same exception for its clients:
+            # https://github.com/ros2/rmw_zenoh/blob/c49176dc15edfcb1f176f7bfb14cf71469cfd341/rmw_zenoh_cpp/src/detail/rmw_client_data.cpp#L137-L146
+            if supplied.fqn.endswith("/_action/get_result"):
+                timeout = 100 * 365 * 24 * 3600
+
+            self._session.get(
+                supplied.key_expr,
+                target=zenoh.QueryTarget.BEST_MATCHING,
+                payload=query.payload,
+                encoding=query.encoding,
+                attachment=query.attachment,
+                handler=zenoh.handlers.Callback(forward, query.drop),
+                timeout=timeout,
+            )
 
         return self._session.declare_queryable(
             demanded.key_expr,
@@ -213,7 +258,7 @@ class ZenohDataBridge:
             queryable.undeclare()
         else:
             publisher, subscriber, _ = self._bridged_channels.pop(supplied)
-            assert isinstance(publisher, zenoh.ext.AdvancedPublisher)
+            assert isinstance(publisher, ZenohDataBridge.GuardedPublisher)
             assert isinstance(subscriber, zenoh.ext.AdvancedSubscriber)
             subscriber.undeclare()
             publisher.undeclare()

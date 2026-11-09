@@ -1,7 +1,10 @@
-import itertools
+from __future__ import annotations
+
 import logging
+from collections.abc import Callable
 from dataclasses import replace
-from typing import Callable
+from queue import Empty, SimpleQueue
+from threading import Event
 
 import zenoh
 
@@ -30,19 +33,54 @@ class ZenohLivelinessBridge:
             f"{LivelinessToken.key_expr_prefix}/{self._config.global_domain_id}/**"
         )
         self._bridged_tokens: dict[LivelinessToken, zenoh.LivelinessToken] = {}
+        self._pending_tokens: SimpleQueue[zenoh.Sample] = SimpleQueue()
         self._node_liveliness_token = self._announce_bridge()
         self._initialize_liveliness()
-        self.sync_liveliness()
 
     def sync_liveliness(self) -> None:
-        for reply in itertools.chain(
-            self._session.liveliness().get(self._local_key_expr),
-            self._session.liveliness().get(self._global_key_expr),
-        ):
+        dones: list[Event] = []
+        replies: list[zenoh.Reply] = []
+
+        for key_expr in (self._local_key_expr, self._global_key_expr):
+            done = Event()
+            dones.append(done)
+
+            # Zenoh delivers known tokens on the calling thread while holding the
+            # session state lock, so get() deadlocked once its default 256-slot channel
+            # was full. Collect replies through a callback instead, and handle them
+            # only after both queries have ended.
+            self._session.liveliness().get(
+                key_expr,
+                zenoh.handlers.Callback(replies.append, done.set),
+            )
+
+        for done in dones:
+            done.wait()
+
+        tokens_to_unbridge = set(self._bridged_tokens)
+
+        for reply in replies:
             sample = reply.result
 
-            if isinstance(sample, zenoh.Sample):
-                self._handle_token(sample)
+            if not isinstance(sample, zenoh.Sample):
+                logger.warning(f"Liveliness query failed: {sample.payload.to_string()}")
+                continue
+
+            token = self._handle_token(sample)
+
+            if token is not None:
+                tokens_to_unbridge.discard(token)
+
+        # Unbridge stale tokens that were not returned by the queries.
+        for token in tokens_to_unbridge:
+            self._unbridge_token(token, self._get_target_domain_id(token))
+
+    def handle_pending_tokens(self, timeout: float = 0.1) -> None:
+        while True:
+            try:
+                self._handle_token(self._pending_tokens.get(timeout=timeout))
+            except Empty:
+                break
 
     def _announce_bridge(self) -> zenoh.LivelinessToken:
         token = LivelinessToken(
@@ -50,7 +88,7 @@ class ZenohLivelinessBridge:
             session_id=str(self._session.zid()),
             node_id="0",
             entity_id="0",
-            entity_kind=LivelinessToken.EntityKind.NODE.value,
+            entity_kind=LivelinessToken.EntityKind.Node.value,
             mangled_enclave="%",
             mangled_namespace="%",
             node_name=self._config.bridge_name,
@@ -64,30 +102,36 @@ class ZenohLivelinessBridge:
         )
         self._session.liveliness().declare_subscriber(
             self._local_key_expr,
-            self._handle_token,
+            self._pending_tokens.put,
         )
         self._session.liveliness().declare_subscriber(
             self._global_key_expr,
-            self._handle_token,
+            self._pending_tokens.put,
         )
+
+    def _get_target_domain_id(self, token: LivelinessToken) -> int:
+        if token.domain_id == self._config.local_domain_id:
+            return self._config.global_domain_id
+
+        return self._config.local_domain_id
 
     def _handle_token(
         self,
         sample: zenoh.Sample,
-    ) -> None:
+    ) -> LivelinessToken | None:
         try:
             token = LivelinessToken.from_key_expr(str(sample.key_expr))
         except ValueError as error:
             logger.error(error)
-            return
+            return None
 
         # We do not bridge node tokens.
-        if token.kind == LivelinessToken.EntityKind.NODE:
-            return
+        if token.kind == LivelinessToken.EntityKind.Node:
+            return None
 
         # We do not bridge tokens that were created by this bridge.
         if token.node_name == self._config.bridge_name:
-            return
+            return None
 
         assert token.mangled_fqn is not None
 
@@ -96,20 +140,15 @@ class ZenohLivelinessBridge:
             pattern.fullmatch(token.mangled_fqn)
             for pattern in self._config.bridged_mangled_fqn_patterns
         ):
-            return
-
-        # We need to bridge this token from the local to the global domain.
-        target_domain_id = (
-            self._config.global_domain_id
-            if token.domain_id == self._config.local_domain_id
-            else self._config.local_domain_id
-        )
+            return None
 
         match sample.kind:
             case zenoh.SampleKind.PUT:
-                self._bridge_token(token, target_domain_id)
+                self._bridge_token(token, self._get_target_domain_id(token))
             case zenoh.SampleKind.DELETE:
-                self._unbridge_token(token, target_domain_id)
+                self._unbridge_token(token, self._get_target_domain_id(token))
+
+        return token
 
     def _bridge_token(
         self,
@@ -136,7 +175,10 @@ class ZenohLivelinessBridge:
         logger.debug(f"Bridged token: {token} -> {bridged_token}")
 
         if self._on_token_bridged:
-            self._on_token_bridged(token)
+            try:
+                self._on_token_bridged(token)
+            except Exception as error:  # noqa: BLE001
+                logger.error(f"Error in callback for token '{token}': {error}")
 
     def _unbridge_token(
         self,
@@ -162,4 +204,7 @@ class ZenohLivelinessBridge:
         logger.debug(f"Unbridged token: {token} -> {bridged_token}")
 
         if self._on_token_unbridged:
-            self._on_token_unbridged(token)
+            try:
+                self._on_token_unbridged(token)
+            except Exception as error:  # noqa: BLE001
+                logger.error(f"Error in callback for token '{token}': {error}")

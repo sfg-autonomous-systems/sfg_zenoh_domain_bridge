@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import ClassVar
 
@@ -25,7 +27,7 @@ class QoSProfile:
     depth: int
 
     @classmethod
-    def merged_from_others(cls, profiles: list["QoSProfile"]) -> "QoSProfile":
+    def merged_from_others(cls, profiles: list[QoSProfile]) -> QoSProfile:
         if not profiles:
             return cls(
                 reliability="BEST_EFFORT",
@@ -51,7 +53,7 @@ class QoSProfile:
 
     # Based on https://github.com/ros2/rmw_zenoh/blob/kilted/rmw_zenoh_cpp/src/detail/liveliness_utils.cpp#L354-L425.
     @classmethod
-    def from_key_expr(cls, key_expr: str) -> "QoSProfile":
+    def from_key_expr(cls, key_expr: str) -> QoSProfile:
         parts = key_expr.split(":")
 
         if len(parts) < 6:

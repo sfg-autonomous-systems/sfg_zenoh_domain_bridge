@@ -1,11 +1,11 @@
 services:
   sfg_zenoh_domain_bridge:
     build:
-      context: ../..
-      dockerfile: .devcontainer/docker/dockerfile.zenoh_domain_bridge
+      context: ..
+      dockerfile: .devcontainer/dockerfile
     volumes:
       - type: bind
-        source: ../..
+        source: ..
         target: /workspace
     network_mode: host
     privileged: true

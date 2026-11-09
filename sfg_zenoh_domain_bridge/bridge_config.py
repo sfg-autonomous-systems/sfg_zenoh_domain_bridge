@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import re
 from dataclasses import dataclass, field, fields
@@ -22,7 +24,7 @@ class BridgeConfig:
     )
     bridged_mangled_fqn_patterns: list[re.Pattern[str]] = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.bridge_name == "":
             object.__setattr__(
                 self, "bridge_name", f"__zenoh_domain_{self.local_domain_id}_bridge"
@@ -34,7 +36,7 @@ class BridgeConfig:
         object.__setattr__(self, "bridged_mangled_fqn_patterns", bridged_fqn_patterns)
 
     @classmethod
-    def from_file(cls, filepath: str) -> "BridgeConfig":
+    def from_file(cls, filepath: str) -> BridgeConfig:
         with open(filepath, "r") as file:
             yaml_dict = yaml.safe_load(file) or {}
 
