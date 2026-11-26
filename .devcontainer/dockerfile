@@ -70,7 +70,7 @@ ENV PATH="/home/$USERNAME/.cargo/bin:${PATH}"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable && rustup update
 
 WORKDIR ${HOME}/dependencies
-ARG ZENOH_VERSION=1.8.0
+ARG ZENOH_VERSION=1.10.2
 
 RUN git clone -b "${ZENOH_VERSION}" --depth 1 "https://github.com/eclipse-zenoh/zenoh-c.git" && \
     cd "zenoh-c" && \
