@@ -10,7 +10,7 @@ authors = [
     { name = "Constantin Blessing", email = "constantin.blessing@hs-esslingen.de" },
 ]
 requires-python = ">=3.10"
-dependencies = ["eclipse-zenoh==1.8.0", "PyYAML"]
+dependencies = ["eclipse-zenoh==1.10.2", "PyYAML"]
 
 [project.scripts]
 sfg-zenoh-domain-bridge = "sfg_zenoh_domain_bridge.main:main"
@@ -18,3 +18,6 @@ sfg-zenoh-domain-bridge = "sfg_zenoh_domain_bridge.main:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["sfg_zenoh_domain_bridge*"]
+
+[tool.setuptools.package-data]
+sfg_zenoh_domain_bridge = ["config/*.json5"]

@@ -6,6 +6,7 @@ import os
 import random
 import sys
 import time
+from importlib.resources import files
 from pathlib import Path
 
 import zenoh
@@ -42,13 +43,20 @@ def main() -> None:
         handlers=[console_handler],
     )
 
-    session_config_filepath = os.getenv("ZENOH_SESSION_CONFIG_URI")
-    session_config = (
-        zenoh.Config.from_file(session_config_filepath)
-        if session_config_filepath is not None
-        and Path(session_config_filepath).exists()
-        else zenoh.Config()
+    session_config_filepath = os.getenv(
+        "ZENOH_SESSION_CONFIG_URI",
+        str(
+            files(__package__)
+            / "config"
+            / "DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5"
+        ),
     )
+    if not Path(session_config_filepath).exists():
+        logger.critical(
+            f"ZENOH_SESSION_CONFIG_URI points to a non-existent file: {session_config_filepath}"
+        )
+        sys.exit(1)
+    session_config = zenoh.Config.from_file(session_config_filepath)
     logger.info(f"Using session configuration: {session_config}")
 
     bridge_config_filepath = os.getenv("ZENOH_BRIDGE_CONFIG_URI")
@@ -57,11 +65,9 @@ def main() -> None:
         if bridge_config_filepath is not None and Path(bridge_config_filepath).exists()
         else BridgeConfig()
     )
-
     if bridge_config.local_domain_id == bridge_config.global_domain_id:
         logger.critical("ROS_DOMAIN_ID must be different from the global domain ID 0.")
         sys.exit(1)
-
     logger.info(f"Using bridge configuration: {bridge_config}")
 
     with zenoh.open(session_config) as session:
@@ -78,7 +84,6 @@ def main() -> None:
         try:
             while True:
                 current_time = time.monotonic()
-
                 if current_time >= next_sync_time:
                     zenoh_liveliness_bridge.sync_liveliness()
                     next_sync_time = current_time + random.uniform(4, 6)
